@@ -1,32 +1,27 @@
 #!/usr/bin/env bash
-# new-server.sh — one-shot bootstrap: clones vps-hardening (or receives it via scp)
-# and runs all scripts in order. Run as root on a brand-new Debian/Ubuntu VPS.
+# new-server.sh — one-shot bootstrap: runs all scripts in order from this repo
+# checkout. Clone the repo, run this, done.
 #
-# Usage:
-#   bash new-server.sh <repo-ssh-url> [extra-ufw-ports...]
+# Usage (as root, inside the cloned repo):
+#   bash scripts/new-server.sh [extra-ufw-ports...]
 # Example:
-#   bash new-server.sh git@github.com:coca-in-a-cola-iaac/vps-hardening.git 8443 20085
+#   bash scripts/new-server.sh 8443 20085
 set -euo pipefail
 
-REPO_URL="${1:?usage: new-server.sh <repo-url> [extra-ports...]}"
-shift || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXTRA_PORTS="${*:-}"
 
-command -v git >/dev/null || { apt-get update -qq && apt-get install -y -qq git; }
+if [ ! -f "${SCRIPT_DIR}/10-user.sh" ]; then
+    echo "ERROR: run this from inside the cloned admin-utils repo (scripts/ missing)" >&2
+    exit 1
+fi
 
-WORKDIR="$(mktemp -d)"
-trap 'rm -rf "${WORKDIR}"' EXIT
-
-echo "=== fetching vps-hardening ==="
-GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" \
-    git clone --depth 1 "${REPO_URL}" "${WORKDIR}/repo" 2>&1 | tail -1
-
-echo "=== running bootstrap (EXTRA_PORTS='${EXTRA_PORTS}') ==="
+echo "=== admin-utils bootstrap (EXTRA_PORTS='${EXTRA_PORTS}') ==="
 export EXTRA_PORTS
 for s in 10-user 20-sshd 30-ufw 40-fail2ban 50-basics; do
     echo "--- ${s} ---"
-    bash "${WORKDIR}/repo/scripts/${s}.sh"
+    bash "${SCRIPT_DIR}/${s}.sh"
 done
 
 echo "=== final gate ==="
-bash "${WORKDIR}/repo/scripts/90-verify.sh"
+bash "${SCRIPT_DIR}/90-verify.sh"

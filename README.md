@@ -5,7 +5,7 @@
 
 ```bash
 # как root на новом сервере:
-git clone <repo-url> && cd vps-hardening
+git clone <repo-url> && cd admin-utils
 bash scripts/10-user.sh        # юзер tyler + sudo + ключ
 bash scripts/20-sshd.sh        # key-only auth, drop-in config, rollback-guard
 bash scripts/30-ufw.sh         # deny incoming; SSH-порт авто-детект; EXTRA_PORTS="8443 ..." для стейджа
