@@ -5,20 +5,27 @@
 #   - Password auth stays ENABLED for owner accounts: root + alice
 #     (via Match block). Everyone else: key-only.
 #   - Owner accounts are configurable: OWNER_USERS="root alice"
+#   - SSH Port is NEVER changed by this script (we only read it).
 #   - If 10-user.sh was skipped (no tyler), script bails before touching sshd.
-# SAFE GUARDS: refuses to run if no authorized_keys; validates config; rollback
-# if sshd dies; NEVER touches Port.
+#
+# ANTI-SELF-TRICKERY (shared with 30-ufw.sh via /run/admin-utils-ssh-port):
+#   The actual listening SSH port is detected from sshd -T (effective config),
+#   and ALWAYS: (1) echoed in a status file for 30-ufw.sh to consume,
+#   (2) ufw rule is added for it RIGHT HERE, before any firewall can run.
+#   So no matter the order of scripts or manual ufw changes, the real SSH
+#   port is never left unreachable.
 set -euo pipefail
 
 SSHD_CONFIG="/etc/ssh/sshd_config"
 SSHD_CONF_DIR="/etc/ssh/sshd_config.d"
 DROPIN="${SSHD_CONF_DIR}/00-vps-hardening.conf"
+PORTFILE="/run/admin-utils-ssh-port"
 OWNER_USERS="${OWNER_USERS:-root alice}"
 
 echo "=== sshd hardening ==="
 
 # --- guard 1: agent key must exist, or we refuse to touch sshd ---
-if ! [ -f /home/tyler/.ssh/authorized_keys ] && grep -q . /home/tyler/.ssh/authorized_keys 2>/dev/null; then
+if ! grep -q . /home/tyler/.ssh/authorized_keys 2>/dev/null; then
     echo "ERROR: /home/tyler/.ssh/authorized_keys missing/empty. Run 10-user.sh first." >&2
     exit 1
 fi
@@ -34,6 +41,12 @@ for u in ${OWNER_USERS}; do
         echo "    guard: ${u} has NO key — password auth will be KEPT for owner users"
     fi
 done
+
+# --- detect EFFECTIVE ssh port (before any changes; read-only) ---
+# sshd -T shows the real effective value incl. sshd_config.d includes.
+CUR_PORT="$(sshd -T 2>/dev/null | grep -iE '^port ' | awk '{print $2}' | head -1)"
+[ -n "${CUR_PORT}" ] || CUR_PORT=22
+echo "    current effective sshd port: ${CUR_PORT} (script NEVER changes it)"
 
 # --- drop-in config ---
 # sshd uses FIRST-match semantics; sshd_config.d loads alphabetically, so our
@@ -57,14 +70,8 @@ ClientAliveCountMax 3
 EOF
 # Owner escape hatch: password login (PAM) preserved for humans, key OR password.
 # Match resets all boolean-ish options, so re-state what matters inside the block.
-first=1
 for u in ${OWNER_USERS}; do
-    if [ $first -eq 1 ]; then
-        echo "Match User ${u}"
-        first=0
-    else
-        echo "Match User ${u}"
-    fi
+    echo "Match User ${u}"
     echo "    PasswordAuthentication yes"
     echo "    KbdInteractiveAuthentication yes"
     if [ "$u" = "root" ]; then
@@ -100,8 +107,18 @@ if ! systemctl is-active sshd >/dev/null 2>&1 && ! systemctl is-active ssh >/dev
     exit 1
 fi
 
+# --- ANTI-TRICKERY: publish the real port AND open it in ufw right now ---
+# (ufw may not even be installed yet — guard against that; if ufw inactive,
+#  30-ufw.sh will re-add the rule when enabling. Writing the rule twice is safe.)
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow "${CUR_PORT}"/tcp comment 'SSH (auto, from 20-sshd)' >/dev/null 2>&1 || true
+    echo "    ufw: ensured ${CUR_PORT}/tcp allowed"
+fi
+echo "${CUR_PORT}" > "${PORTFILE}"
+chmod 644 "${PORTFILE}" 2>/dev/null || true
+
 echo "    effective config (no Match context):"
-sshd -T 2>/dev/null | grep -E "^(passwordauthentication|pubkeyauthentication|permitrootlogin)" | sed 's/^/        /'
+sshd -T 2>/dev/null | grep -E "^(passwordauthentication|pubkeyauthentication|permitrootlogin|port )" | sed 's/^/        /'
 echo "    effective config (owner user alice):"
 sshd -T -C user=alice,host=x,addr=1.2.3.4 2>/dev/null | grep -E "^(passwordauthentication|permitrootlogin)" | sed 's/^/        /' || true
 echo "=== 20-sshd done (VERIFY KEY LOGIN FROM OUTSIDE BEFORE DISCONNECTING!) ==="
