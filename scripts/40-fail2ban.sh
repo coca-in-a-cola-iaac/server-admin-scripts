@@ -31,6 +31,19 @@ fi
 
 systemctl enable fail2ban >/dev/null 2>&1 || true
 systemctl restart fail2ban
-sleep 1
+
+# Wait for the control socket (python server needs ~2s on small VPSs;
+# fixed sleep races → "Failed to access socket path")
+SOCKET_OK=0
+for _ in $(seq 1 30); do
+    if fail2ban-client ping >/dev/null 2>&1; then SOCKET_OK=1; break; fi
+    sleep 0.5
+done
+if [ "${SOCKET_OK}" -ne 1 ]; then
+    echo "    ERROR: fail2ban socket not up after 15s" >&2
+    systemctl --no-pager -l status fail2ban 2>&1 | tail -5 || true
+    exit 1
+fi
+
 fail2ban-client status sshd | sed 's/^/    /'
 echo "=== 40-fail2ban done ==="
