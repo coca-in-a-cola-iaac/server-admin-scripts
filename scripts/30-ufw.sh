@@ -11,7 +11,7 @@ fi
 echo "=== ufw setup ==="
 
 # --- detect SSH port (config or running), never lock ourselves out ---
-SSH_PORT="$(ss -tlnp 2>/dev/null | grep -E 'sshd|ssh' | grep -oE ':(0-9]+)?' | grep -oE '[0-9]+' | head -1 || true)"
+SSH_PORT="$(ss -tlnp 2>/dev/null | grep sshd | grep -oE ':[0-9]+' | head -1 | tr -d ':' || true)"
 [ -n "${SSH_PORT}" ] || SSH_PORT="$(ss -tln | awk '/ssh/ {print $4}' | grep -oE '[0-9]+$' | head -1 || true)"
 [ -n "${SSH_PORT}" ] || SSH_PORT=22
 echo "    detected SSH port: ${SSH_PORT}"

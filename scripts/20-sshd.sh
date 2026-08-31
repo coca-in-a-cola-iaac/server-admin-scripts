@@ -21,11 +21,15 @@ if ! check_key /root && ! check_key /home/tyler; then
 fi
 echo "    key check: ok (root or tyler has authorized_keys)"
 
-# --- drop-in config (sshd_config.d wins on Debian 12 / Ubuntu 22.04+) ---
+# --- drop-in config ---
+# CRITICAL: sshd uses FIRST-match semantics, and sshd_config.d files load in
+# alphabetical order. Ubuntu ships 50-cloud-init.conf with PasswordAuthentication
+# yes — our drop-in must sort BEFORE it (00-...) to win.
+SSHD_CONF_DIR="/etc/ssh/sshd_config.d"
+DROPIN="${SSHD_CONF_DIR}/00-vps-hardening.conf"
 mkdir -p "${SSHD_CONF_DIR}"
-DROPIN="${SSHD_CONF_DIR}/50-hardening.conf"
 cat > "${DROPIN}" <<'EOF'
-# Managed by vps-hardening. Do not edit by hand.
+# Managed by admin-utils. Do not edit by hand.
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
@@ -38,6 +42,13 @@ X11Forwarding no
 ClientAliveInterval 120
 ClientAliveCountMax 3
 EOF
+
+# Neutralize conflicting "yes" in stock drop-ins (cloud-init etc.)
+for f in "${SSHD_CONF_DIR}"/*.conf; do
+    [ -f "$f" ] || continue
+    [ "$(basename "$f")" = "$(basename "${DROPIN}")" ] && continue
+    sed -i -E 's/^(PasswordAuthentication[[:space:]]+)yes/\1no/i' "$f" || true
+done
 
 # Legacy main config: neutralize conflicting directives if present
 sed -i -E 's/^(PasswordAuthentication[[:space:]]+)yes/\1no/i' "${SSHD_CONFIG}" || true
