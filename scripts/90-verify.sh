@@ -31,5 +31,27 @@ check "unattended-upgrades"          sh -c 'test -f /etc/apt/apt.conf.d/20auto-u
 check "journald cap"                 sh -c 'test -f /etc/systemd/journald.conf.d/size-cap.conf'
 
 echo "=== result: ${PASS} ok, ${FAIL} fail ==="
-[ "${FAIL}" -eq 0 ] && echo "ALL GREEN — server ready for Tyler" || echo "RED — fix failures above"
+if [ "${FAIL}" -eq 0 ]; then
+    # Connection card for Tyler: copy-paste line with all access details
+    TYLER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [ -n "${TYLER_IP}" ] || TYLER_IP=$(ip -4 addr show scope global 2>/dev/null | grep -oE 'inet [0-9.]+' | head -1 | cut -d' ' -f2)
+    SSH_PORT="$(ss -tln 2>/dev/null | awk '/sshd|:22 / {print $4}' | grep -oE '[0-9]+$' | head -1)"
+    [ -n "${SSH_PORT}" ] || SSH_PORT=22
+    OS="$(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d'"' -f2)"
+    RAM="$(free -m 2>/dev/null | awk '/Mem:/ {print $2"MB"}')"
+    DISK="$(df -h / 2>/dev/null | awk 'NR==2 {print $4" free"}')"
+    echo ""
+    echo "=========================================="
+    echo "ALL GREEN — server ready for Tyler"
+    echo "------------------------------------------"
+    echo "COPY THIS TO TYLER:"
+    echo "IP: ${TYLER_IP:-<public-ip>}"
+    echo "SSH порт: ${SSH_PORT}"
+    echo "Подключайся: ssh tyler@${TYLER_IP:-<ip>} -p ${SSH_PORT}"
+    echo "------------------------------------------"
+    echo "(${OS:-?}, ${RAM:-?} RAM, / ${DISK:-?})"
+    echo "=========================================="
+else
+    echo "RED — fix failures above"
+fi
 exit "${FAIL}"
