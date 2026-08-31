@@ -11,10 +11,11 @@ echo "=== fail2ban setup ==="
 # --- jail config: drop-in only, never touch stock files ---
 mkdir -p /etc/fail2ban/jail.d
 cat > /etc/fail2ban/jail.d/sshd-hard.local <<'EOF'
-# Managed by vps-hardening
+# Managed by admin-utils
 [sshd]
 enabled  = true
 port     = ssh
+backend  = systemd
 maxretry = 5
 findtime = 10m
 bantime  = 1h
