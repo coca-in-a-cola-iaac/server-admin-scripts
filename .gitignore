@@ -1,0 +1,13 @@
+# Secrets and local state — never commit
+*.pub
+*.key
+*.pem
+.env
+.env.*
+secrets/
+*.secret
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*~
