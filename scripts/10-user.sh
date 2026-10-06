@@ -4,7 +4,10 @@
 set -euo pipefail
 
 TYLER_USER="${TYLER_USER:-tyler}"
-TYLER_SSH_KEY="${TYLER_SSH_KEY:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5REDACTED_KEY_MATERIAL tyler@example}"
+# Public key of the agent user. REQUIRED — set it in the environment, e.g.:
+#   TYLER_SSH_KEY="$(cat ~/.ssh/id_ed25519.pub)" bash scripts/new-server.sh
+# Never hardcode a key here: this repo is public.
+TYLER_SSH_KEY="${TYLER_SSH_KEY:?set TYLER_SSH_KEY to the agent user public key (ssh-ed25519 AAAA... or ssh-rsa AAAA...)}"
 SUDOERS_FILE="/etc/sudoers.d/${TYLER_USER}"
 
 echo "=== [1/4] user ${TYLER_USER} ==="

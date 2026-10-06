@@ -2,11 +2,11 @@
 # 20-sshd.sh — sshd hardening. Idempotent, validates config before applying.
 #
 # POLICY (anti-lockout):
-#   - Password auth stays ENABLED for owner accounts: root + alice
-#     (via Match block). Everyone else: key-only.
+#   - Password auth stays ENABLED for owner accounts (via Match block).
+#     Everyone else: key-only.
 #   - Owner accounts are configurable: OWNER_USERS="root alice"
 #   - SSH Port is NEVER changed by this script (we only read it).
-#   - If 10-user.sh was skipped (no tyler), script bails before touching sshd.
+#   - If 10-user.sh was skipped (no agent user), script bails before touching sshd.
 #
 # ANTI-SELF-TRICKERY (shared with 30-ufw.sh via /run/admin-utils-ssh-port):
 #   The actual listening SSH port is detected from sshd -T (effective config),
@@ -20,7 +20,7 @@ SSHD_CONFIG="/etc/ssh/sshd_config"
 SSHD_CONF_DIR="/etc/ssh/sshd_config.d"
 DROPIN="${SSHD_CONF_DIR}/00-vps-hardening.conf"
 PORTFILE="/run/admin-utils-ssh-port"
-OWNER_USERS="${OWNER_USERS:-root alice}"
+OWNER_USERS="${OWNER_USERS:-root}"
 
 echo "=== sshd hardening ==="
 
@@ -119,6 +119,8 @@ chmod 644 "${PORTFILE}" 2>/dev/null || true
 
 echo "    effective config (no Match context):"
 sshd -T 2>/dev/null | grep -E "^(passwordauthentication|pubkeyauthentication|permitrootlogin|port )" | sed 's/^/        /'
-echo "    effective config (owner user alice):"
-sshd -T -C user=alice,host=x,addr=1.2.3.4 2>/dev/null | grep -E "^(passwordauthentication|permitrootlogin)" | sed 's/^/        /' || true
+for u in ${OWNER_USERS}; do
+    echo "    effective config (owner user ${u}):"
+    sshd -T -C user=${u},host=x,addr=1.2.3.4 2>/dev/null | grep -E "^(passwordauthentication|permitrootlogin)" | sed 's/^/        /' || true
+done
 echo "=== 20-sshd done (VERIFY KEY LOGIN FROM OUTSIDE BEFORE DISCONNECTING!) ==="
