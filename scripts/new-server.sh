@@ -6,6 +6,10 @@
 #   bash scripts/new-server.sh [extra-ufw-ports...]
 # Example:
 #   bash scripts/new-server.sh 8443 20085
+#
+# The agent SSH public key is required. Either export it beforehand:
+#   TYLER_SSH_KEY="$(cat ~/.ssh/id_ed25519.pub)" bash scripts/new-server.sh
+# or just run this from an interactive shell and paste it when prompted.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,6 +18,21 @@ EXTRA_PORTS="${*:-}"
 if [ ! -f "${SCRIPT_DIR}/10-user.sh" ]; then
     echo "ERROR: run this from inside the cloned admin-utils repo (scripts/ missing)" >&2
     exit 1
+fi
+
+# Pre-flight the SSH key so the user is not surprised mid-run. If it is not in the
+# environment, prompt ONCE here (interactive) — 10-user.sh then reads it from env.
+if [ -z "${TYLER_SSH_KEY:-}" ]; then
+    if [ -t 0 ]; then
+        echo "This bootstrap needs the agent user public key."
+        echo "On YOUR machine find it with:  cat ~/.ssh/id_ed25519.pub"
+        read -r -p "Paste public key here: " TYLER_SSH_KEY
+        export TYLER_SSH_KEY
+    else
+        echo "ERROR: TYLER_SSH_KEY is not set and stdin is not a terminal." >&2
+        echo "  Run:  TYLER_SSH_KEY=\"\$(cat ~/.ssh/id_ed25519.pub)\" bash scripts/new-server.sh" >&2
+        exit 1
+    fi
 fi
 
 echo "=== admin-utils bootstrap (EXTRA_PORTS='${EXTRA_PORTS}') ==="

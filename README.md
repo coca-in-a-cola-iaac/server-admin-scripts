@@ -6,10 +6,11 @@
 ```bash
 # как root на новом сервере:
 git clone <repo-url> && cd admin-utils
-export TYLER_SSH_KEY="$(cat /path/to/your/agent_key.pub)"
 bash scripts/new-server.sh            # one-shot: 10..50 + gate
+# ключ спросит интерактивно; либо заранее:
+#   export TYLER_SSH_KEY="$(cat ~/.ssh/id_ed25519.pub)"
 # либо по шагам:
-bash scripts/10-user.sh        # юзер tyler + sudo + ключ
+bash scripts/10-user.sh        # юзер + sudo + ключ (спросит ключ, если нет env)
 bash scripts/20-sshd.sh        # key-only auth, drop-in config, rollback-guard
 bash scripts/30-ufw.sh         # deny incoming; SSH-порт авто-детект; EXTRA_PORTS="8443 ..." для стейджа
 bash scripts/40-fail2ban.sh    # sshd jail, bantime.increment до 1w
@@ -28,7 +29,7 @@ bash scripts/90-verify.sh      # гейт: все проверки, exit != 0 е
 ## Переменные
 | env | где | по умолчанию |
 |---|---|---|
-| `TYLER_SSH_KEY` | 10-user | — (обязательна: публичный ключ агента) |
+| `TYLER_SSH_KEY` | 10-user | — (публичный ключ агента; можно ввести интерактивно) |
 | `TYLER_USER` | 10-user | `tyler` |
 | `TYLER_GROUPS` | 10-user | — (напр. `docker`) |
 | `OWNER_USERS` | 20-sshd | `root` (кому оставляем парольный вход; напр. `"root alice"`) |
