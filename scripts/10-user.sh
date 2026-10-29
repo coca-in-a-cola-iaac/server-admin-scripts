@@ -6,12 +6,35 @@ set -euo pipefail
 TYLER_USER="${TYLER_USER:-tyler}"
 SUDOERS_FILE="/etc/sudoers.d/${TYLER_USER}"
 
-# --- ensure the base tools we need exist (minimal Debian/Ubuntu images lack adduser) ---
+# --- ensure standard administrative paths are in PATH (/usr/sbin, /sbin, /usr/local/sbin) ---
+for p in /usr/sbin /sbin /usr/local/sbin; do
+    case ":${PATH}:" in
+        *:"${p}":*) ;;
+        *) PATH="${p}:${PATH}" ;;
+    esac
+done
+export PATH
+
+# --- ensure the base tools we need exist (minimal Debian/Ubuntu images lack adduser/sudo) ---
 need_pkg() { command -v "$1" >/dev/null 2>&1; }
+
+MISSING_PKGS=()
 if ! need_pkg useradd || ! need_pkg chpasswd || ! need_pkg getent; then
-    echo "=== installing prerequisites (passwd) ==="
+    MISSING_PKGS+=(passwd)
+fi
+if ! need_pkg visudo || ! need_pkg sudo; then
+    MISSING_PKGS+=(sudo)
+fi
+
+if [ ${#MISSING_PKGS[@]} -gt 0 ]; then
+    echo "=== installing prerequisites (${MISSING_PKGS[*]}) ==="
     DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq passwd
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${MISSING_PKGS[@]}"
+fi
+
+if ! need_pkg visudo || ! need_pkg sudo; then
+    echo "ERROR: visudo/sudo still missing after prerequisite installation" >&2
+    exit 1
 fi
 
 # --- resolve the agent public key: env > prompt ---
